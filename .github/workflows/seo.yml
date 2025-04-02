@@ -1,0 +1,97 @@
+name: Crypto Domain Scanner & SEO Automation
+
+on:
+  schedule:
+    - cron: '0 * * * *'  # Runs every hour
+  workflow_dispatch:  # Allows manual trigger
+
+jobs:
+  scan_domains:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Install Dependencies
+        run: sudo apt-get install jq -y
+
+      - name: Scan for New Crypto Domains
+        run: |
+          mkdir -p scan
+          TIMESTAMP=$(date -u +"%Y-%m-%d_%H-%M-%S")
+          FILE_NAME="scan/domains_$TIMESTAMP.json"
+
+          echo "Fetching latest domains..."
+          curl -s "https://api.godaddy.com/v1/domains/available?query=crypto" -o $FILE_NAME || echo "[]" > $FILE_NAME
+
+          echo "Scanning WHOIS data..."
+          jq -r '.[] | {domain: .domain, created: .createdAt, expires: .expiresAt, status: .status}' $FILE_NAME > "scan/latest_domains.json"
+
+      - name: Generate Sitemap
+        run: |
+          echo '<?xml version="1.0" encoding="UTF-8"?>' > sitemap.xml
+          echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' >> sitemap.xml
+          
+          for file in scan/*.json; do
+            DOMAIN=$(jq -r '.domain' $file | head -1)
+            if [[ -n "$DOMAIN" ]]; then
+              echo "  <url>" >> sitemap.xml
+              echo "    <loc>https://yourdomain.com/scan/${DOMAIN}.html</loc>" >> sitemap.xml
+              echo "    <lastmod>$(date -u +"%Y-%m-%dT%H:%M:%SZ")</lastmod>" >> sitemap.xml
+              echo "  </url>" >> sitemap.xml
+            fi
+          done
+          
+          echo '</urlset>' >> sitemap.xml
+
+      - name: Generate SEO-Optimized Index.html
+        run: |
+          echo "<!DOCTYPE html>" > index.html
+          echo "<html lang='en'>" >> index.html
+          echo "<head>" >> index.html
+          echo "  <meta charset='UTF-8'>" >> index.html
+          echo "  <meta name='viewport' content='width=device-width, initial-scale=1.0'>" >> index.html
+          echo "  <title>Live Crypto Domains - Updated Hourly</title>" >> index.html
+          echo "  <meta name='description' content='Live tracking of newly registered crypto domains. Updated every hour.'>" >> index.html
+          echo "  <link rel='canonical' href='https://yourdomain.com/' />" >> index.html
+          echo "  <meta property='og:title' content='Live Crypto Domains'>" >> index.html
+          echo "  <meta property='og:description' content='Track latest crypto-related domains.'>" >> index.html
+          echo "  <meta property='og:url' content='https://yourdomain.com/'>" >> index.html
+          echo "  <meta name='robots' content='index, follow'>" >> index.html
+          echo "  <script type='application/ld+json'>" >> index.html
+          echo "    {" >> index.html
+          echo "      \"@context\": \"https://schema.org\"," >> index.html
+          echo "      \"@type\": \"WebSite\"," >> index.html
+          echo "      \"url\": \"https://yourdomain.com/\"," >> index.html
+          echo "      \"name\": \"Live Crypto Domains\"," >> index.html
+          echo "      \"description\": \"Live tracking of newly registered crypto domains.\"," >> index.html
+          echo "      \"potentialAction\": {" >> index.html
+          echo "        \"@type\": \"SearchAction\"," >> index.html
+          echo "        \"target\": \"https://yourdomain.com/search?q={search_term}\"," >> index.html
+          echo "        \"query-input\": \"required name=search_term\"" >> index.html
+          echo "      }" >> index.html
+          echo "    }" >> index.html
+          echo "  </script>" >> index.html
+          echo "</head>" >> index.html
+          echo "<body>" >> index.html
+          echo "  <h1>Live Crypto Domains</h1>" >> index.html
+          echo "  <p>Updated every hour with the latest crypto-related domains.</p>" >> index.html
+          echo "  <ul>" >> index.html
+          for file in scan/*.json; do
+            DOMAIN=$(jq -r '.domain' $file | head -1)
+            if [[ -n "$DOMAIN" ]]; then
+              echo "    <li><a href='scan/${DOMAIN}.html'>${DOMAIN}</a></li>" >> index.html
+            fi
+          done
+          echo "  </ul>" >> index.html
+          echo "</body>" >> index.html
+          echo "</html>" >> index.html
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
+          publish_branch: gh-pages
+          force_orphan: true

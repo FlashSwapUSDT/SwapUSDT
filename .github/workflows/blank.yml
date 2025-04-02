@@ -1,0 +1,38 @@
+name: Deploy Backlinks
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Create Public Folder and Default index.html
+        run: |
+          mkdir -p public
+          echo "<!DOCTYPE html>" > public/index.html
+          echo "<html lang='en'>" >> public/index.html
+          echo "<head>" >> public/index.html
+          echo "  <meta charset='UTF-8'>" >> public/index.html
+          echo "  <meta name='viewport' content='width=device-width, initial-scale=1.0'>" >> public/index.html
+          echo "  <title>Flash USDT Sender</title>" >> public/index.html
+          echo "</head>" >> public/index.html
+          echo "<body>" >> public/index.html
+          echo "  <h1>Welcome to Flash USDT Sender</h1>" >> public/index.html
+          echo "  <p>This is the default GitHub Pages index.html file.</p>" >> public/index.html
+          echo "</body>" >> public/index.html
+          echo "</html>" >> public/index.html
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: public
+          publish_branch: gh-pages
+          force_orphan: true
